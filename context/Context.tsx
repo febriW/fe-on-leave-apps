@@ -182,10 +182,10 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
   const dataValue = {
     admins, employees, leaves, showToast,
     addAdmin: async (a: any) => { await api.post('/admin', a); fetchData(); },
-    updateAdmin: async (email: string, a: any) => { await api.patch(`/admin/${email}`, a); fetchData(); },
+    updateAdmin: async (email: string, a: any) => { await api.put(`/admin/${email}`, a); fetchData(); },
     deleteAdmin: async (email: string) => { await api.delete(`/admin/${email}`); fetchData(); },
     addEmployee: async (e: any) => { await api.post('/pegawai', e); fetchData(); },
-    updateEmployee: async (email: string, e: any) => { await api.patch(`/pegawai/${email}`, e); fetchData(); },
+    updateEmployee: async (email: string, e: any) => { await api.put(`/pegawai/${email}`, e); fetchData(); },
     deleteEmployee: async (email: string) => { await api.delete(`/pegawai/${email}`); fetchData(); },
     addLeave: async (l: any) => { await api.post('/cuti', l); fetchData(); },
     updateLeave: async (id: number, l: any) => { await api.patch(`/cuti/${id}`, l); fetchData(); },
