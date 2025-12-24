@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, Users, ShieldCheck, CalendarDays, UserPlus, 
-  LogOut, Menu, Briefcase 
+  LogOut, Menu, Briefcase, Loader2 
 } from 'lucide-react';
-import { AuthContext } from '@/context/Context';
+import { useAuth } from '@/context/AuthContext';
 
 const SidebarLink: React.FC<{ href: string, icon: React.ReactNode, label: string, active: boolean, onClick?: () => void }> = ({ href, icon, label, active, onClick }) => (
   <Link 
@@ -23,45 +23,39 @@ const SidebarLink: React.FC<{ href: string, icon: React.ReactNode, label: string
 );
 
 export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const auth = useContext(AuthContext);
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // PROTEKSI: Jika loading selesai dan TIDAK terautentikasi (token tidak ada), lempar ke login
-    if (!auth?.isLoading && !auth?.isAuthenticated) {
-      router.push('/login');
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/login');
     }
-  }, [auth?.isAuthenticated, auth?.isLoading, router]);
+  }, [isAuthenticated, isLoading, router]);
 
-  // 1. Tampilkan loading screen saat aplikasi mengecek localStorage/token
-  if (auth?.isLoading) {
+  if (isLoading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
-        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
         <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Memeriksa Sesi...</p>
       </div>
     );
   }
 
-  // 2. Jika tidak terautentikasi, jangan render apa pun agar tidak flicker sebelum redirect
-  if (!auth?.isAuthenticated) return null;
+  if (!isAuthenticated) return null;
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
-  // Ambil inisial dari email (karena kita tidak punya data nama lengkap)
-  const displayEmail = auth?.user?.email || 'Admin';
-  const initial = displayEmail.charAt(0).toUpperCase();
+  const displayEmail = user?.email || 'Admin';
+  const displayName = user?.nama_depan || 'Admin';
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen flex bg-slate-50 overflow-x-hidden">
-      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 lg:hidden" onClick={toggleSidebar}></div>
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-100 transform transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-8 h-full flex flex-col">
           <div className="flex items-center space-x-3 text-indigo-600 font-black text-2xl mb-12">
@@ -90,13 +84,12 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
                 {initial}
               </div>
               <div className="flex-1 min-w-0">
-                {/* Menampilkan email sebagai identitas utama */}
-                <p className="text-sm font-bold text-gray-800 truncate">{displayEmail}</p>
-                <p className="text-[10px] font-bold text-indigo-500 uppercase">Administrator</p>
+                <p className="text-sm font-bold text-gray-800 truncate">{displayName}</p>
+                <p className="text-[10px] text-gray-400 truncate font-medium">{displayEmail}</p>
               </div>
             </div>
             <button 
-              onClick={() => auth?.logout()} 
+              onClick={logout} 
               className="w-full flex items-center justify-center space-x-2 p-3.5 text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold text-sm active:scale-95 group"
             >
               <LogOut className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -106,7 +99,6 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 md:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center">

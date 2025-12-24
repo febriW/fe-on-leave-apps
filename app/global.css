@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar untuk dashboard kamu */
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;

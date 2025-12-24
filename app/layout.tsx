@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./global.css";
-import { CombinedProvider } from "@/context/Context";
-
+import { AppProviders } from "@/components/providers";
 
 export const metadata: Metadata = {
   title: "Admin HRM - Sistem Manajemen Cuti",
@@ -12,9 +11,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="antialiased bg-slate-50 text-gray-900">
-        <CombinedProvider>
+        <AppProviders>
           {children}
-        </CombinedProvider>
+        </AppProviders>
       </body>
     </html>
   );

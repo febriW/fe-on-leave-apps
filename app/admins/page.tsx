@@ -1,19 +1,18 @@
-// /app/admins/page.tsx
 'use client';
 
-import React, { useState, useContext, useMemo } from 'react';
-import { DataContext } from '@/context/Context';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { useData } from '@/context/DataContext'; 
+import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Modal, ConfirmModal, InputGroup, Pagination, DatePicker } from '@/components/UIComponents';
-import { Admin } from '@/types';
+import { Admin, CreateAdminInput } from '@/types';
 import { MainLayout } from '@/components/MainLayout';
 
 export default function AdminPage() {
-  const data = useContext(DataContext);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const { admins, addAdmin, updateAdmin, deleteAdmin, isLoadingData } = useData();
   
-  // Pagination State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -37,10 +36,8 @@ export default function AdminPage() {
     open: false, onConfirm: () => {}, title: '', message: '', type: 'primary'
   });
 
-  const admins = data?.admins || [];
   const totalItems = admins.length;
 
-  // Memoized Paginated Data
   const paginatedAdmins = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return admins.slice(start, start + itemsPerPage);
@@ -93,14 +90,22 @@ export default function AdminPage() {
       message: editingEmail ? 'Perbarui data admin ini?' : 'Admin baru akan ditambahkan ke sistem.',
       type: 'primary',
       onConfirm: async () => {
-        if (editingEmail) {
-          const updateData: Partial<Admin> = { ...form };
-          if (!form.password) delete updateData.password;
-          await data?.updateAdmin(editingEmail, updateData);
-        } else {
-          await data?.addAdmin({ ...form });
+        setIsSubmitting(true);
+        try {
+          if (editingEmail) {
+            const updateData: Partial<Admin> = { ...form };
+            if (!form.password) delete updateData.password;
+            await updateAdmin(editingEmail, updateData);
+          } else {
+            await addAdmin(form as CreateAdminInput);
+          }
+          setIsModalOpen(false);
+        } catch (error) {
+          console.error(error)
+        } finally {
+          setIsSubmitting(false);
+          setConfirmConfig(prev => ({ ...prev, open: false }));
         }
-        setIsModalOpen(false);
       }
     });
   };
@@ -134,7 +139,14 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginatedAdmins.map(admin => (
+                {isLoadingData ? (
+                   <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" />
+                      <p className="mt-2 text-gray-400 font-medium">Memuat data...</p>
+                    </td>
+                  </tr>
+                ) : paginatedAdmins.map(admin => (
                   <tr key={admin.email} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-800">{admin.nama_depan} {admin.nama_belakang}</td>
                     <td className="px-6 py-4 text-gray-600">{admin.email}</td>
@@ -160,7 +172,7 @@ export default function AdminPage() {
                             title: 'Hapus Admin?',
                             message: `Hapus admin ${admin.email}?`,
                             type: 'danger',
-                            onConfirm: () => data?.deleteAdmin(admin.email)
+                            onConfirm: () => deleteAdmin(admin.email)
                           })} 
                           className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                         >
@@ -170,7 +182,7 @@ export default function AdminPage() {
                     </td>
                   </tr>
                 ))}
-                {paginatedAdmins.length === 0 && (
+                {!isLoadingData && paginatedAdmins.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium italic">
                       Tidak ada data admin ditemukan
@@ -246,9 +258,10 @@ export default function AdminPage() {
             </div>
             <button 
               type="submit" 
-              className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm"
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-indigo-700 disabled:bg-gray-400 transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm flex justify-center items-center"
             >
-              {editingEmail ? 'SIMPAN PERUBAHAN' : 'BUAT ADMIN BARU'}
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : (editingEmail ? 'SIMPAN PERUBAHAN' : 'BUAT ADMIN BARU')}
             </button>
           </form>
         </Modal>

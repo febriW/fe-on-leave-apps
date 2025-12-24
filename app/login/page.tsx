@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useContext, useEffect } from 'react';
-import { AuthContext } from '@/context/Context';
-import { ShieldCheck, AlertCircle, Mail, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { ShieldCheck, AlertCircle, Mail, Lock, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -10,15 +10,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const auth = useContext(AuthContext);
+  const { user, login, isLoading } = useAuth();
   const router = useRouter();
 
-  // Redirect jika sudah login
   useEffect(() => {
-    if (auth?.user) {
-      router.push('/dashboard');
+    if (user) {
+      router.replace('/dashboard');
     }
-  }, [auth?.user, router]);
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,15 +25,23 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const success = await auth?.login(email, password);
+      const success = await login(email, password);
       if (!success) setError('Akses ditolak. Cek kembali email & password.');
+    } catch (err) {
+      setError('Terjadi kesalahan sistem. Silakan coba lagi.');
     } finally {
       setIsSubmitting(false);
     }
-
   };
 
-  if (auth?.user) return null; // Cegah flickering sebelum redirect
+  if (isLoading || user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mempersiapkan Sesi</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
@@ -57,7 +64,9 @@ export default function LoginPage() {
           <div className="space-y-2">
             <label className="block text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Email Address</label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                <Mail className="w-5 h-5 text-gray-400" />
+              </div>
               <input 
                 type="email" 
                 className="w-full pl-12 pr-5 py-4 rounded-2xl border border-gray-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 outline-none transition-all font-bold text-gray-700"
@@ -71,7 +80,9 @@ export default function LoginPage() {
           <div className="space-y-2">
             <label className="block text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Password</label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                <Lock className="w-5 h-5 text-gray-400" />
+              </div>
               <input 
                 type="password" 
                 className="w-full pl-12 pr-5 py-4 rounded-2xl border border-gray-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 outline-none transition-all font-bold text-gray-700"
@@ -85,7 +96,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full text-white font-black py-4 rounded-2xl shadow-xl transition-all transform uppercase tracking-widest text-sm mt-4
+            className={`w-full text-white font-black py-4 rounded-2xl shadow-xl transition-all transform uppercase tracking-widest text-sm mt-4 flex items-center justify-center
               ${
                 isSubmitting
                   ? 'bg-indigo-400 opacity-70 cursor-not-allowed'
@@ -93,7 +104,12 @@ export default function LoginPage() {
               }
             `}
           >
-            {isSubmitting ? 'Loading...' : 'Masuk ke Sistem'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                MEMPROSES...
+              </>
+            ) : 'Masuk ke Sistem'}
           </button>
         </form>
         
