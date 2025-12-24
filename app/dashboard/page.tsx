@@ -1,16 +1,15 @@
 'use client';
 
-import React, { useContext } from 'react';
-import { DataContext } from '@/context/Context';
+import { useData } from '@/context/DataContext';
 import { Users, ShieldCheck, CalendarDays, ClipboardList, LayoutDashboard } from 'lucide-react';
 import { MainLayout } from '@/components/MainLayout';
 
 export default function DashboardPage() {
-  const data = useContext(DataContext);
+  const { employees, leaves, admins } = useData();
   
-  const totalEmployees = data?.employees.length || 0;
-  const totalLeaves = data?.leaves.length || 0;
-  const totalAdmins = data?.admins.length || 0;
+  const totalEmployees = employees.length;
+  const totalLeaves = leaves.length;
+  const totalAdmins = admins.length;
 
   return (
     <MainLayout>
@@ -47,7 +46,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {data?.employees.slice(-5).reverse().map(emp => (
+                  {employees.slice(-5).reverse().map(emp => (
                     <tr key={emp.email} className="group hover:bg-slate-50 transition-colors">
                       <td className="py-4 px-2">
                         <div className="flex items-center">
@@ -72,7 +71,7 @@ export default function DashboardPage() {
                   <p className="text-gray-400 text-sm font-medium italic">Tidak ada data cuti</p>
                 </div>
               ) : (
-                data?.leaves.slice(0, 5).map(leave => (
+                leaves.slice(0, 5).map(leave => (
                   <div key={leave.id} className="p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
                     <div className="flex justify-between items-start mb-2">
                       <p className="font-bold text-gray-800 text-sm">{leave.pegawai?.nama_depan} {leave.pegawai?.nama_belakang}</p>

@@ -1,4 +1,3 @@
-
 export type Role = 'ADMIN';
 
 export interface Admin {
@@ -29,7 +28,7 @@ export interface LeaveRequest {
   tanggal_mulai: string;
   tanggal_selesai: string;
   pegawaiEmail: string;
-  pegawai?: Employee; // Nested object in GET responses
+  pegawai?: Employee;
   created_at: string;
   updated_at: string;
 }
@@ -38,9 +37,28 @@ export interface EmployeeWithLeaves extends Employee {
   leaves: LeaveRequest[];
 }
 
+// Payload dari JWT Token
+export interface AuthUser {
+  email: string;
+  nama_depan: string;
+  sub?: string;
+  role?: Role;
+}
+
+// Toast Notification
 export interface Toast {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
-  duration: number;
+  duration?: number;
 }
+
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  success?: boolean;
+}
+
+export type CreateAdminInput = Omit<Admin, 'created_at' | 'updated_at'>;
+export type CreateEmployeeInput = Omit<Employee, 'created_at' | 'updated_at'>;
+export type CreateLeaveInput = Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>;

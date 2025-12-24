@@ -1,19 +1,18 @@
-// /app/employees/page.tsx
 'use client';
 
-import React, { useState, useContext, useMemo } from 'react';
-import { DataContext } from '@/context/Context';
-import { Plus, Edit, Trash2, MapPin, Phone } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { useData } from '@/context/DataContext';
+import { Plus, Edit, Trash2, MapPin, Phone, Loader2 } from 'lucide-react';
 import { Modal, ConfirmModal, InputGroup, Pagination } from '@/components/UIComponents';
-import { Employee } from '@/types';
+import { Employee, CreateEmployeeInput } from '@/types';
 import { MainLayout } from '@/components/MainLayout';
 
 export default function EmployeePage() {
-  const data = useContext(DataContext);
+  const { employees, addEmployee, updateEmployee, deleteEmployee, isLoadingData } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -37,7 +36,6 @@ export default function EmployeePage() {
     open: false, onConfirm: () => {}, title: '', message: '', type: 'primary'
   });
 
-  const employees = data?.employees || [];
   const totalItems = employees.length;
 
   const paginatedEmployees = useMemo(() => {
@@ -92,12 +90,19 @@ export default function EmployeePage() {
       message: 'Apakah Anda yakin ingin menyimpan perubahan data pegawai ini?',
       type: 'primary',
       onConfirm: async () => {
-        if (editingEmail) {
-          await data?.updateEmployee(editingEmail, { ...form });
-        } else {
-          await data?.addEmployee({ ...form });
+        setIsSubmitting(true);
+        try {
+          if (editingEmail) {
+            await updateEmployee(editingEmail, form);
+          } else {
+            await addEmployee(form as CreateEmployeeInput);
+          }
+          setIsModalOpen(false);
+        } catch (error) {
+        } finally {
+          setIsSubmitting(false);
+          setConfirmConfig(prev => ({ ...prev, open: false }));
         }
-        setIsModalOpen(false);
       }
     });
   };
@@ -130,7 +135,14 @@ export default function EmployeePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginatedEmployees.map(emp => (
+                {isLoadingData ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" />
+                      <p className="mt-2 text-gray-400 font-medium">Memuat data pegawai...</p>
+                    </td>
+                  </tr>
+                ) : paginatedEmployees.map(emp => (
                   <tr key={emp.email} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-800 text-sm">{emp.nama_depan} {emp.nama_belakang}</div>
@@ -164,7 +176,7 @@ export default function EmployeePage() {
                             title: 'Hapus Pegawai?', 
                             message: `Hapus data ${emp.email}? Tindakan ini tidak dapat dibatalkan.`, 
                             type: 'danger',
-                            onConfirm: () => data?.deleteEmployee(emp.email)
+                            onConfirm: () => deleteEmployee(emp.email)
                           })} 
                           className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                         >
@@ -174,7 +186,7 @@ export default function EmployeePage() {
                     </td>
                   </tr>
                 ))}
-                {paginatedEmployees.length === 0 && (
+                {!isLoadingData && paginatedEmployees.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-gray-400 font-medium italic">
                       Tidak ada data pegawai ditemukan
@@ -252,9 +264,10 @@ export default function EmployeePage() {
             </InputGroup>
             <button 
               type="submit" 
-              className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm"
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-indigo-700 disabled:bg-gray-400 transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm flex justify-center items-center"
             >
-              {editingEmail ? 'SIMPAN PERUBAHAN' : 'TAMBAH PEGAWAI'}
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : (editingEmail ? 'SIMPAN PERUBAHAN' : 'TAMBAH PEGAWAI')}
             </button>
           </form>
         </Modal>

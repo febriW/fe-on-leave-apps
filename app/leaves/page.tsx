@@ -1,19 +1,18 @@
-// /app/leaves/page.tsx
 'use client';
 
-import React, { useState, useContext, useMemo } from 'react';
-import { DataContext } from '@/context/Context';
-import { Plus, Edit, Trash2, Calendar, FileText } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { useData } from '@/context/DataContext';
+import { Plus, Edit, Trash2, Calendar, FileText, Loader2 } from 'lucide-react';
 import { Modal, ConfirmModal, InputGroup, Pagination, SearchableSelect, DatePicker } from '@/components/UIComponents';
-import { LeaveRequest } from '@/types';
+import { LeaveRequest, CreateLeaveInput } from '@/types';
 import { MainLayout } from '@/components/MainLayout';
 
 export default function LeavePage() {
-  const data = useContext(DataContext);
+  const { leaves, employees, addLeave, updateLeave, deleteLeave, isLoadingData } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -35,7 +34,6 @@ export default function LeavePage() {
     open: false, onConfirm: () => {}, title: '', message: '', type: 'primary'
   });
 
-  const leaves = data?.leaves || [];
   const totalItems = leaves.length;
 
   const paginatedLeaves = useMemo(() => {
@@ -44,12 +42,12 @@ export default function LeavePage() {
   }, [leaves, currentPage]);
 
   const employeeOptions = useMemo(() => {
-    return (data?.employees || []).map(emp => ({
+    return employees.map(emp => ({
       label: `${emp.nama_depan} ${emp.nama_belakang}`,
       subLabel: emp.email,
       value: emp.email
     }));
-  }, [data?.employees]);
+  }, [employees]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -110,12 +108,19 @@ export default function LeavePage() {
       message: editingId ? 'Perbarui data cuti ini?' : 'Pengajuan cuti akan didaftarkan ke sistem.',
       type: 'primary',
       onConfirm: async () => {
-        if (editingId) {
-          await data?.updateLeave(editingId, { ...form });
-        } else {
-          await data?.addLeave({ ...form });
+        setIsSubmitting(true);
+        try {
+          if (editingId) {
+            await updateLeave(editingId, form);
+          } else {
+            await addLeave(form as CreateLeaveInput);
+          }
+          setIsModalOpen(false);
+        } catch (error) {
+        } finally {
+          setIsSubmitting(false);
+          setConfirmConfig(prev => ({ ...prev, open: false }));
         }
-        setIsModalOpen(false);
       }
     });
   };
@@ -149,7 +154,14 @@ export default function LeavePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginatedLeaves.map(leave => (
+                {isLoadingData ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" />
+                      <p className="mt-2 text-gray-400 font-medium">Memuat data cuti...</p>
+                    </td>
+                  </tr>
+                ) : paginatedLeaves.map(leave => (
                   <tr key={leave.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 text-xs font-black text-gray-400">#{leave.id}</td>
                     <td className="px-6 py-4">
@@ -184,7 +196,7 @@ export default function LeavePage() {
                             title: 'Hapus Record?', 
                             message: `Hapus record cuti #${leave.id}?`, 
                             type: 'danger',
-                            onConfirm: () => data?.deleteLeave(leave.id)
+                            onConfirm: () => deleteLeave(leave.id)
                           })} 
                           className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                         >
@@ -194,7 +206,7 @@ export default function LeavePage() {
                     </td>
                   </tr>
                 ))}
-                {paginatedLeaves.length === 0 && (
+                {!isLoadingData && paginatedLeaves.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium italic">
                       Tidak ada data cuti ditemukan
@@ -255,9 +267,10 @@ export default function LeavePage() {
             
             <button 
               type="submit" 
-              className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm"
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-indigo-700 disabled:bg-gray-400 transition-all active:scale-95 mt-4 uppercase tracking-widest text-sm flex justify-center items-center"
             >
-              {editingId ? 'SIMPAN PERUBAHAN' : 'KIRIM PENGAJUAN'}
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : (editingId ? 'SIMPAN PERUBAHAN' : 'KIRIM PENGAJUAN')}
             </button>
           </form>
         </Modal>
