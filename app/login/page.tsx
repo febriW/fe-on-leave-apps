@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const auth = useContext(AuthContext);
   const router = useRouter();
 
@@ -22,10 +23,15 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const success = await auth?.login(email, password);
-    if (!success) {
-      setError('Akses ditolak. Cek kembali email & password.');
+    setIsSubmitting(true);
+
+    try {
+      const success = await auth?.login(email, password);
+      if (!success) setError('Akses ditolak. Cek kembali email & password.');
+    } finally {
+      setIsSubmitting(false);
     }
+
   };
 
   if (auth?.user) return null; // Cegah flickering sebelum redirect
@@ -76,11 +82,18 @@ export default function LoginPage() {
               />
             </div>
           </div>
-          <button 
-            type="submit" 
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-indigo-100 transition-all transform active:scale-95 uppercase tracking-widest text-sm mt-4"
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`w-full text-white font-black py-4 rounded-2xl shadow-xl transition-all transform uppercase tracking-widest text-sm mt-4
+              ${
+                isSubmitting
+                  ? 'bg-indigo-400 opacity-70 cursor-not-allowed'
+                  : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100 active:scale-95'
+              }
+            `}
           >
-            Masuk ke Sistem
+            {isSubmitting ? 'Loading...' : 'Masuk ke Sistem'}
           </button>
         </form>
         

@@ -30,7 +30,7 @@ interface DataContextType {
   addLeave: (l: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   updateLeave: (id: number, l: Partial<LeaveRequest>) => Promise<void>;
   deleteLeave: (id: number) => Promise<void>;
-  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  showToast: (message: string, type?: 'success' | 'error' | 'info', duration?: number) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -50,15 +50,37 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
   const [toasts, setToasts] = useState<Toast[]>([]);
   const router = useRouter();
 
+  // Handle Logout Logic
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setIsAuthenticated(false);
+    setUser(null);
+    router.push('/login');
+  }, [router]);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success',  duration: number = 5000) => {
+  const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, message, type, duration }]);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const getErrorMessage = (err: any, fallback: string) => {
+    return err.response?.data?.message || err.response?.data?.error || fallback;
+  };
+
   // 1. SETUP AXIOS INTERCEPTORS
   useEffect(() => {
     // Interseptor Request: Tambahkan Token ke Header
     const requestInterceptor = api.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem('access_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (token) { config.headers.Authorization = `Bearer ${token}`; }
+        if (refreshToken) { config.headers['x-refresh-token'] = refreshToken; }
         return config;
       },
       (error) => Promise.reject(error)
@@ -66,9 +88,18 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
 
     // Interseptor Response: Tangani 401 Unauthorized secara global
     const responseInterceptor = api.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        const newAccessToken = response.headers['x-access-token'];
+        if (newAccessToken) {
+          localStorage.setItem('access_token', newAccessToken);
+          const payload = decodeToken(newAccessToken);
+          if (payload) setUser({ email: payload.email || payload.sub, nama_depan: 'Admin' });
+        }
+        return response;
+      },
       (error) => {
         if (error.response?.status === 401) {
+          showToast('Sesi telah berakhir, silakan login kembali', 'error', 8000);
           handleLogout();
         }
         return Promise.reject(error);
@@ -79,16 +110,7 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
       api.interceptors.request.eject(requestInterceptor);
       api.interceptors.response.eject(responseInterceptor);
     };
-  }, []);
-
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts(prev => [...prev, { id, message, type }]);
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  }, [handleLogout, showToast]);
 
   // Fungsi Fetch Data (Panggil setelah login sukses)
   const fetchData = useCallback(async () => {
@@ -105,14 +127,6 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
       console.error("Gagal mengambil data dari API", err);
     }
   }, []);
-
-  // Handle Logout Logic
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('access_token');
-    setIsAuthenticated(false);
-    setUser(null);
-    router.push('/login');
-  }, [router]);
 
    // Fungsi untuk decode JWT sederhana
   const decodeToken = (token: string) => {
@@ -146,9 +160,10 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
     login: async (email: string, password: string) => {
       try {
         const res = await api.post('/auth/login', { email, password });
-        const { access_token } = res.data;
+        const { access_token, refresh_token } = res.data;
 
         localStorage.setItem('access_token', access_token);
+        localStorage.setItem('refresh_token', refresh_token);
         
         const payload = decodeToken(access_token);
         setUser({ email: payload.email || payload.sub, nama_depan: 'Admin' });
@@ -158,7 +173,7 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
         router.push('/dashboard');
         return true;
       } catch (err: any) {
-        showToast('Login Gagal', 'error');
+        showToast(getErrorMessage(err, 'Login Gagal, periksa kembali email dan password'), 'error', 8000);
         return false;
       }
     },
@@ -167,7 +182,6 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
 
   const leaves = useMemo(() => {
   if (!Array.isArray(rawLeaves)) return [];
-
   return rawLeaves.map((leave: any) => {
     const pegawaiFromApi = leave.pegawai;
     const pegawaiEnriched = pegawaiFromApi || employees.find(e => e.email === leave.pegawaiEmail);
@@ -181,15 +195,90 @@ export const CombinedProvider = ({ children }: { children: React.ReactNode }) =>
 
   const dataValue = {
     admins, employees, leaves, showToast,
-    addAdmin: async (a: any) => { await api.post('/admin', a); fetchData(); },
-    updateAdmin: async (email: string, a: any) => { await api.put(`/admin/${email}`, a); fetchData(); },
-    deleteAdmin: async (email: string) => { await api.delete(`/admin/${email}`); fetchData(); },
-    addEmployee: async (e: any) => { await api.post('/pegawai', e); fetchData(); },
-    updateEmployee: async (email: string, e: any) => { await api.put(`/pegawai/${email}`, e); fetchData(); },
-    deleteEmployee: async (email: string) => { await api.delete(`/pegawai/${email}`); fetchData(); },
-    addLeave: async (l: any) => { await api.post('/cuti', l); fetchData(); },
-    updateLeave: async (id: number, l: any) => { await api.patch(`/cuti/${id}`, l); fetchData(); },
-    deleteLeave: async (id: number) => { await api.delete(`/cuti/${id}`); fetchData(); },
+    // Admin CRUD
+    addAdmin: async (a: any) => {
+      try {
+        await api.post('/admin', a);
+        await fetchData();
+        showToast('Admin berhasil ditambahkan', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal menambahkan admin'), 'error', 8000);
+      }
+    },
+    updateAdmin: async (email: string, a: any) => {
+      try {
+        await api.put(`/admin/${email}`, a);
+        await fetchData();
+        showToast('Admin berhasil diperbarui', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal memperbarui admin'), 'error', 8000);
+      }
+    },
+    deleteAdmin: async (email: string) => {
+      try {
+        await api.delete(`/admin/${email}`);
+        await fetchData();
+        showToast('Admin berhasil dihapus', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal menghapus admin'), 'error', 8000);
+      }
+    },
+    // Employee CRUD
+    addEmployee: async (e: any) => {
+      try {
+        await api.post('/pegawai', e);
+        await fetchData();
+        showToast('Pegawai berhasil ditambahkan', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal menambahkan pegawai'), 'error', 8000);
+      }
+    },
+    updateEmployee: async (email: string, e: any) => {
+      try {
+        await api.put(`/pegawai/${email}`, e);
+        await fetchData();
+        showToast('Pegawai berhasil diperbarui', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal memperbarui pegawai'), 'error', 8000);
+      }
+    },
+    deleteEmployee: async (email: string) => {
+      try {
+        await api.delete(`/pegawai/${email}`);
+        await fetchData();
+        showToast('Pegawai berhasil dihapus', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal menghapus pegawai'), 'error', 8000);
+      }
+    },
+    // Leave CRUD
+    addLeave: async (l: any) => {
+      try {
+        await api.post('/cuti', l);
+        await fetchData();
+        showToast('Pengajuan cuti berhasil dikirim', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal membuat pengajuan cuti'), 'error', 8000);
+      }
+    },
+    updateLeave: async (id: number, l: any) => {
+      try {
+        await api.patch(`/cuti/${id}`, l);
+        await fetchData();
+        showToast('Status cuti berhasil diperbarui', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal memperbarui data cuti'), 'error', 8000);
+      }
+    },
+    deleteLeave: async (id: number) => {
+      try {
+        await api.delete(`/cuti/${id}`);
+        await fetchData();
+        showToast('Data cuti berhasil dihapus', 'success');
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Gagal menghapus data cuti'), 'error', 8000);
+      }
+    },
   };
 
   return (

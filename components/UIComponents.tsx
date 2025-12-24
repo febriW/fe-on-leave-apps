@@ -374,14 +374,16 @@ export const ToastContainer: React.FC<{ toasts: ToastType[], removeToast: (id: s
 
 const ToastItem: React.FC<{ toast: ToastType, onClose: () => void }> = ({ toast, onClose }) => {
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const displayDuration = toast.duration || 5000; 
+    const timer = setTimeout(onClose, displayDuration);
+    
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, toast.duration]);
 
   const styles = {
-    success: 'bg-white border-green-100 text-green-800',
-    error: 'bg-white border-red-100 text-red-800',
-    info: 'bg-white border-indigo-100 text-indigo-800'
+    success: 'bg-white border-green-100 text-green-800 shadow-green-100/50',
+    error: 'bg-white border-red-100 text-red-800 shadow-red-100/50',
+    info: 'bg-white border-indigo-100 text-indigo-800 shadow-indigo-100/50'
   };
 
   const icons = {
@@ -391,14 +393,23 @@ const ToastItem: React.FC<{ toast: ToastType, onClose: () => void }> = ({ toast,
   };
 
   return (
-    <div className={`pointer-events-auto flex items-center p-4 rounded-2xl shadow-xl border animate-in slide-in-from-right-full duration-300 ${styles[toast.type]}`}>
+    <div 
+      className={`
+        pointer-events-auto flex items-center p-4 rounded-2xl shadow-xl border 
+        animate-in slide-in-from-right-full fade-in duration-500
+        ${styles[toast.type]}
+      `}
+    >
       <div className="mr-3 shrink-0">
         {icons[toast.type]}
       </div>
-      <div className="flex-1 mr-4">
-        <p className="text-sm font-bold leading-tight">{toast.message}</p>
+      <div className="flex-1 mr-2">
+        <p className="text-sm font-semibold leading-snug">{toast.message}</p>
       </div>
-      <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
+      <button 
+        onClick={onClose} 
+        className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"
+      >
         <X className="w-4 h-4" />
       </button>
     </div>
