@@ -141,7 +141,7 @@ export default function EmployeePage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-black text-gray-800">Data Pegawai</h2>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Database SDM Internal (Server-Side)</p>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Database SDM Internal</p>
           </div>
           <button 
             onClick={() => handleOpenModal()} 

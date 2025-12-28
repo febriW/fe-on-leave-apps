@@ -59,6 +59,16 @@ export interface ApiResponse<T> {
   success?: boolean;
 }
 
+export interface Paginated {
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedResponse<T> extends Paginated {
+  data: T[];
+}
+
 export type CreateAdminInput = Omit<Admin, 'created_at' | 'updated_at'>;
 export type CreateEmployeeInput = Omit<Employee, 'created_at' | 'updated_at'>;
 export type CreateLeaveInput = Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>;

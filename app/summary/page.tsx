@@ -5,35 +5,33 @@ import { Pagination } from '@/components/UIComponents';
 import { MainLayout } from '@/components/MainLayout';
 import { Loader2, Users } from 'lucide-react';
 import { EmployeeSummaryRow } from '@/components/EmployeeSummaryRow';
-import { api } from '@/lib/api';
 import { Employee } from '@/types';
+import { useData } from '@/context/DataContext';
 
 export default function SummaryPage() {
+  const { fetchEmployees } = useData();
   const [employeesData, setEmployeesData] = useState<Employee[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const fetchEmployees = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.get(`/pegawai?page=${currentPage}&limit=${itemsPerPage}`);
-      if (response.data) {
-        setEmployeesData(response.data.data || []);
-        setTotalItems(response.data.total || 0);
+
+  const loadEmployees = useCallback(async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetchEmployees(currentPage, itemsPerPage);
+        setEmployeesData(response.data);
+        setTotalItems(response.total);
+      } catch (error) {
+        console.error("Failed to load employees", error);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Gagal mengambil data pegawai:", error);
-      setEmployeesData([]);
-      setTotalItems(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage]);
+    }, [currentPage, fetchEmployees]);
 
   useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+    loadEmployees();
+  }, [loadEmployees]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -43,7 +41,6 @@ export default function SummaryPage() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header Section - Disederhanakan tanpa Search */}
         <div className="mb-8">
           <h2 className="text-2xl font-black text-gray-800">Detail & Riwayat Pegawai</h2>
           <div className="flex items-center gap-2 mt-1">
@@ -55,7 +52,6 @@ export default function SummaryPage() {
             </p>
           </div>
         </div>
-
         {/* List Pegawai Section */}
         <div className="grid grid-cols-1 gap-6">
           {isLoading ? (

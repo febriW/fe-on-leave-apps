@@ -2,19 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { Employee, LeaveRequest } from '@/types';
-import { api } from '@/lib/api';
+import { useData } from '@/context/DataContext';
 import { Calendar, Loader2, Info } from 'lucide-react';
 
 export const EmployeeSummaryRow = ({ employee }: { employee: Employee }) => {
+  const { fetchLeaves } = useData();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchLeaves = async () => {
+    const loadEmployeeLeaves = async () => {
+      if (!employee.email) return;
+      
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        const response = await api.get(`/cuti/${encodeURIComponent(employee.email)}`);
-        setLeaves(response.data.data || []);
+        const result = await fetchLeaves(1, 50, employee.email);
+        setLeaves(result.data);
       } catch (error) {
         console.error("Gagal mengambil cuti untuk:", employee.email, error);
       } finally {
@@ -22,11 +25,12 @@ export const EmployeeSummaryRow = ({ employee }: { employee: Employee }) => {
       }
     };
 
-    if (employee.email) fetchLeaves();
-  }, [employee.email]);
+    loadEmployeeLeaves();
+  }, [employee.email, fetchLeaves]);
 
   return (
     <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300">
+      {/* Profil Pegawai */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-dashed border-gray-100 pb-6 gap-4">
         <div className="flex items-center">
           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-lg shadow-indigo-100 mr-4 sm:mr-5">
@@ -47,6 +51,7 @@ export const EmployeeSummaryRow = ({ employee }: { employee: Employee }) => {
           </div>
         </div>
         
+        {/* Statistik Ringkas */}
         <div className="bg-indigo-50 px-4 py-2 sm:px-5 sm:py-3 rounded-2xl text-center min-w-[100px] sm:min-w-[120px] self-end sm:self-auto">
           <span className="text-[9px] sm:text-[10px] font-black text-indigo-400 uppercase tracking-widest block mb-1">Total Cuti</span>
           <p className="text-xl sm:text-2xl font-black text-indigo-600">
@@ -55,6 +60,7 @@ export const EmployeeSummaryRow = ({ employee }: { employee: Employee }) => {
         </div>
       </div>
       
+      {/* List Riwayat Cuti */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h4 className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest flex items-center">
@@ -79,15 +85,11 @@ export const EmployeeSummaryRow = ({ employee }: { employee: Employee }) => {
         ) : (
           <div 
             className={`
-              pr-2 -mr-2 /* offset untuk scrollbar agar tidak menempel ke card */
-              overflow-y-auto 
-              transition-all
+              pr-2 -mr-2 overflow-y-auto transition-all
               ${leaves.length > 3 ? 'max-h-[380px] sm:max-h-[220px] lg:max-h-[200px]' : 'max-h-full'}
               scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent
             `}
-            style={{
-              scrollbarWidth: 'thin',
-            }}
+            style={{ scrollbarWidth: 'thin' }}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-2">
               {leaves.map(l => (
