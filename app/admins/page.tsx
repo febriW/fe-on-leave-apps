@@ -1,20 +1,23 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useData } from '@/context/DataContext'; 
 import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Modal, ConfirmModal, InputGroup, Pagination, DatePicker } from '@/components/UIComponents';
 import { Admin, CreateAdminInput } from '@/types';
 import { MainLayout } from '@/components/MainLayout';
+import { api } from '@/lib/api';
 
 export default function AdminPage() {
-  const { admins, addAdmin, updateAdmin, deleteAdmin, isLoadingData } = useData();
-  
+  const { addAdmin, updateAdmin, deleteAdmin } = useData();
+  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   const [form, setForm] = useState({ 
     email: '', 
@@ -36,12 +39,22 @@ export default function AdminPage() {
     open: false, onConfirm: () => {}, title: '', message: '', type: 'primary'
   });
 
-  const totalItems = admins.length;
+  const loadAdmins = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get(`/admin?page=${currentPage}&limit=${itemsPerPage}`);
+      setAdmins(response.data.data || []);
+      setTotalItems(response.data.total || 0);
+    } catch (error) {
+      console.error("Gagal mengambil data admin:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage]);
 
-  const paginatedAdmins = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return admins.slice(start, start + itemsPerPage);
-  }, [admins, currentPage]);
+  useEffect(() => {
+    loadAdmins();
+  }, [loadAdmins]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -100,12 +113,29 @@ export default function AdminPage() {
             await addAdmin(form as CreateAdminInput);
           }
           setIsModalOpen(false);
+          loadAdmins();
         } catch (error) {
-          console.error(error)
+          console.error(error);
         } finally {
           setIsSubmitting(false);
           setConfirmConfig(prev => ({ ...prev, open: false }));
         }
+      }
+    });
+  };
+
+  const handleDelete = (email: string) => {
+    setConfirmConfig({
+      open: true,
+      title: 'Hapus Admin?',
+      message: `Hapus admin ${email}? Tindakan ini permanen.`,
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteAdmin(email);
+          loadAdmins();
+        } catch (error) {}
+        setConfirmConfig(prev => ({ ...prev, open: false }));
       }
     });
   };
@@ -116,7 +146,7 @@ export default function AdminPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-black text-gray-800">Manajemen Admin</h2>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Hak Akses Sistem</p>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Hak Akses Sistem (Server-Side)</p>
           </div>
           <button 
             onClick={() => handleOpenModal()} 
@@ -139,14 +169,14 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {isLoadingData ? (
+                {isLoading ? (
                    <tr>
                     <td colSpan={5} className="px-6 py-12 text-center">
                       <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" />
                       <p className="mt-2 text-gray-400 font-medium">Memuat data...</p>
                     </td>
                   </tr>
-                ) : paginatedAdmins.map(admin => (
+                ) : admins.map(admin => (
                   <tr key={admin.email} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-800">{admin.nama_depan} {admin.nama_belakang}</td>
                     <td className="px-6 py-4 text-gray-600">{admin.email}</td>
@@ -167,13 +197,7 @@ export default function AdminPage() {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => setConfirmConfig({
-                            open: true,
-                            title: 'Hapus Admin?',
-                            message: `Hapus admin ${admin.email}?`,
-                            type: 'danger',
-                            onConfirm: () => deleteAdmin(admin.email)
-                          })} 
+                          onClick={() => handleDelete(admin.email)} 
                           className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -182,7 +206,7 @@ export default function AdminPage() {
                     </td>
                   </tr>
                 ))}
-                {!isLoadingData && paginatedAdmins.length === 0 && (
+                {!isLoading && admins.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium italic">
                       Tidak ada data admin ditemukan

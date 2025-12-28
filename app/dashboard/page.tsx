@@ -1,19 +1,50 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useData } from '@/context/DataContext';
-import { Users, ShieldCheck, CalendarDays, ClipboardList, LayoutDashboard } from 'lucide-react';
+import { Users, ShieldCheck, CalendarDays, ClipboardList, LayoutDashboard, Loader2 } from 'lucide-react';
 import { MainLayout } from '@/components/MainLayout';
+import { LeaveRequest } from '@/types';
 
 export default function DashboardPage() {
-  const { employees, leaves, admins } = useData();
-  
+  const { employees, admins, fetchLeaves, isLoadingData } = useData();
+  const [recentLeaves, setRecentLeaves] = useState<LeaveRequest[]>([]);
+  const [totalLeaves, setTotalLeaves] = useState(0);
+  const [isLoadingLeaves, setIsLoadingLeaves] = useState(true);
+
+  useEffect(() => {
+    const loadLeaves = async () => {
+      try {
+        const response = await fetchLeaves(1, 5);
+        setRecentLeaves(response.data);
+        setTotalLeaves(response.total);
+      } catch (error) {
+        console.error("Gagal mengambil data cuti:", error);
+      } finally {
+        setIsLoadingLeaves(false);
+      }
+    };
+
+    loadLeaves();
+  }, [fetchLeaves]);
+
   const totalEmployees = employees.length;
-  const totalLeaves = leaves.length;
   const totalAdmins = admins.length;
+  
+  if (isLoadingData) {
+    return (
+      <MainLayout>
+        <div className="flex h-96 items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
       <div className="space-y-8">
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             { label: 'Total Pegawai', val: totalEmployees, icon: <Users className="w-6 h-6" />, color: 'bg-blue-600' },
@@ -32,6 +63,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Recent Employees Table */}
           <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <h2 className="text-xl font-bold mb-8 flex items-center text-gray-800">
               <LayoutDashboard className="w-5 h-5 mr-3 text-indigo-600" /> Ringkasan Pegawai Terbaru
@@ -50,12 +82,16 @@ export default function DashboardPage() {
                     <tr key={emp.email} className="group hover:bg-slate-50 transition-colors">
                       <td className="py-4 px-2">
                         <div className="flex items-center">
-                          <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold mr-3">{emp.nama_depan.charAt(0)}</div>
+                          <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold mr-3">
+                            {emp.nama_depan.charAt(0)}
+                          </div>
                           <span className="font-bold text-gray-700 text-sm">{emp.nama_depan} {emp.nama_belakang}</span>
                         </div>
                       </td>
                       <td className="py-4 px-2 text-sm text-gray-500 font-medium">{emp.no_hp}</td>
-                      <td className="py-4 px-2 text-right text-xs font-bold text-gray-400">{emp.created_at.split('T')[0]}</td>
+                      <td className="py-4 px-2 text-right text-xs font-bold text-gray-400">
+                        {emp.created_at?.split('T')[0] || '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -63,18 +99,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Recent Leaves List */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <h2 className="text-xl font-bold mb-8 flex items-center text-gray-800">Cuti Terakhir</h2>
             <div className="space-y-4">
-              {totalLeaves === 0 ? (
+              {isLoadingLeaves ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+                </div>
+              ) : recentLeaves.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-gray-400 text-sm font-medium italic">Tidak ada data cuti</p>
                 </div>
               ) : (
-                leaves.slice(0, 5).map(leave => (
+                recentLeaves.map(leave => (
                   <div key={leave.id} className="p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
                     <div className="flex justify-between items-start mb-2">
-                      <p className="font-bold text-gray-800 text-sm">{leave.pegawai?.nama_depan} {leave.pegawai?.nama_belakang}</p>
+                      <p className="font-bold text-gray-800 text-sm">
+                        {leave.pegawai?.nama_depan} {leave.pegawai?.nama_belakang}
+                      </p>
                       <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">ID: #{leave.id}</span>
                     </div>
                     <p className="text-xs text-gray-500 line-clamp-1 italic">"{leave.alasan}"</p>

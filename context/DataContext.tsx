@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useCallback, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useCallback, useContext, useEffect } from 'react';
 import { 
   Admin, Employee, LeaveRequest, 
   CreateAdminInput, CreateEmployeeInput, CreateLeaveInput 
@@ -9,21 +9,29 @@ import { api, getErrorMessage } from '@/lib/api';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
 
+interface Paginated {
+  total: number;
+  page: number;
+  limit: number;
+}
+
+interface PaginatedResponse<T> extends Paginated {
+  data: T[];
+}
+
 interface DataContextType {
   admins: Admin[];
   employees: Employee[];
-  leaves: LeaveRequest[];
   isLoadingData: boolean;
-  refreshAll: () => Promise<void>;
-  // Admin Actions
+  fetchEmployees: (page: number, limit: number) => Promise<PaginatedResponse<Employee>>;
+  refreshMasterData: () => Promise<void>;
+  fetchLeaves: (page: number, limit: number, search?: string) => Promise<PaginatedResponse<LeaveRequest>>;
   addAdmin: (data: CreateAdminInput) => Promise<void>;
   updateAdmin: (email: string, data: Partial<Admin>) => Promise<void>;
   deleteAdmin: (email: string) => Promise<void>;
-  // Employee Actions
   addEmployee: (data: CreateEmployeeInput) => Promise<void>;
   updateEmployee: (email: string, data: Partial<Employee>) => Promise<void>;
   deleteEmployee: (email: string) => Promise<void>;
-  // Leave Actions
   addLeave: (data: CreateLeaveInput) => Promise<void>;
   updateLeave: (id: number, data: Partial<LeaveRequest>) => Promise<void>;
   deleteLeave: (id: number) => Promise<void>;
@@ -34,57 +42,71 @@ const DataContext = createContext<DataContextType | null>(null);
 export const DataProvider = ({ children }: { children: React.ReactNode }) => {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [rawLeaves, setRawLeaves] = useState<LeaveRequest[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   const { showToast } = useToast();
   const { isAuthenticated } = useAuth();
-
-  const refreshAll = useCallback(async () => {
+  const refreshMasterData = useCallback(async () => {
     if (!isAuthenticated) return;
     
     setIsLoadingData(true);
     try {
-      const [resAdmins, resEmps, resLeaves] = await Promise.all([
+      const [resAdmins, resEmps] = await Promise.all([
         api.get('/admin'),
-        api.get('/pegawai'),
-        api.get('/cuti')
+        api.get('/pegawai')
       ]);
       
       setAdmins(resAdmins.data.data || []);
       setEmployees(resEmps.data.data || []);
-      setRawLeaves(resLeaves.data.data || []);
     } catch (err) {
-      console.error("Fetch Error:", err);
+      console.error("Fetch Master Data Error:", err);
     } finally {
       setIsLoadingData(false);
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated) refreshAll();
-  }, [isAuthenticated, refreshAll]);
+    if (isAuthenticated) refreshMasterData();
+  }, [isAuthenticated, refreshMasterData]);
+  
+  const fetchLeaves = useCallback(async (page: number, limit: number, search?: string): Promise<PaginatedResponse<LeaveRequest>> => {
+    try {
+      let url = '';
+      if (search?.includes('@')) {
+        url = `/cuti/${encodeURIComponent(search)}`;
+      } else {
+        url = `/cuti?page=${page}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`;
+      }
 
-  const leaves = useMemo(() => {
-  return rawLeaves.map((leave: any) => {
-    const normalizedEmail = leave.pegawaiEmail || leave.pegawai_email || leave.pegawai?.email;
-    const pegawai = leave.pegawai || employees.find(e => e.email === normalizedEmail);
-    return { 
-      ...leave, 
-      pegawaiEmail: normalizedEmail,
-      pegawai 
-    };
-  });
-}, [rawLeaves, employees]);
+      const res = await api.get(url);
+      const resData = res.data.data || [];
+
+      return {
+        data: Array.isArray(resData) ? resData : [resData],
+        total: res.data.total || (Array.isArray(resData) ? resData.length : 1),
+        page: res.data.page || page,
+        limit: res.data.limit || limit
+      };
+    } catch (err) {
+      console.error("Fetch Leaves Error:", err);
+      return { 
+        data: [], 
+        total: 0, 
+        page: 1, 
+        limit: 10 
+      };
+    }
+  }, []);
 
   const executeAction = async (
     action: () => Promise<any>, 
     successMsg: string, 
-    errorFallback: string
+    errorFallback: string,
+    refreshMaster: boolean = false
   ) => {
     try {
       await action();
-      await refreshAll();
+      if (refreshMaster) await refreshMasterData();
       showToast(successMsg, 'success');
     } catch (err) {
       showToast(getErrorMessage(err, errorFallback), 'error', 8000);
@@ -92,35 +114,41 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const fetchEmployees = useCallback(async (page: number, limit: number) => {
+    try {
+      const res = await api.get(`/pegawai?page=${page}&limit=${limit}`);
+      return {
+        data: res.data.data || [],
+        total: res.data.total || 0,
+        page: res.data.page || page,
+        limit: res.data.limit || limit
+      };
+    } catch (err) {
+      console.error("Fetch Employees Error:", err);
+      return { data: [], total: 0, page: 1, limit: 10 };
+    }
+  }, []);
+
   const dataValue: DataContextType = {
-    admins, employees, leaves, isLoadingData, refreshAll,
+    admins, 
+    employees, 
+    isLoadingData, 
+    refreshMasterData,
+    fetchLeaves,
+    fetchEmployees,
     
-    addAdmin: (data) => 
-      executeAction(() => api.post('/admin', data), 'Admin berhasil ditambahkan', 'Gagal menambah admin'),
-    
-    updateAdmin: (email, data) => 
-      executeAction(() => api.put(`/admin/${email}`, data), 'Admin diperbarui', 'Gagal memperbarui admin'),
-    
-    deleteAdmin: (email) => 
-      executeAction(() => api.delete(`/admin/${email}`), 'Admin dihapus', 'Gagal menghapus admin'),
+    // Admin & Employee actions
+    addAdmin: (data) => executeAction(() => api.post('/admin', data), 'Admin ditambahkan', 'Gagal', true),
+    updateAdmin: (email, data) => executeAction(() => api.put(`/admin/${email}`, data), 'Admin diperbarui', 'Gagal', true),
+    deleteAdmin: (email) => executeAction(() => api.delete(`/admin/${email}`), 'Admin dihapus', 'Gagal', true),
 
-    addEmployee: (data) => 
-      executeAction(() => api.post('/pegawai', data), 'Pegawai berhasil ditambahkan', 'Gagal menambah pegawai'),
-    
-    updateEmployee: (email, data) => 
-      executeAction(() => api.put(`/pegawai/${email}`, data), 'Pegawai diperbarui', 'Gagal memperbarui pegawai'),
-    
-    deleteEmployee: (email) => 
-      executeAction(() => api.delete(`/pegawai/${email}`), 'Pegawai dihapus', 'Gagal menghapus pegawai'),
+    addEmployee: (data) => executeAction(() => api.post('/pegawai', data), 'Pegawai ditambahkan', 'Gagal', true),
+    updateEmployee: (email, data) => executeAction(() => api.put(`/pegawai/${email}`, data), 'Pegawai diperbarui', 'Gagal', true),
+    deleteEmployee: (email) => executeAction(() => api.delete(`/pegawai/${email}`), 'Pegawai dihapus', 'Gagal', true),
 
-    addLeave: (data) => 
-      executeAction(() => api.post('/cuti', data), 'Cuti berhasil diajukan', 'Gagal mengajukan cuti'),
-    
-    updateLeave: (id, data) => 
-      executeAction(() => api.patch(`/cuti/${id}`, data), 'Status cuti diperbarui', 'Gagal memperbarui cuti'),
-    
-    deleteLeave: (id) => 
-      executeAction(() => api.delete(`/cuti/${id}`), 'Data cuti dihapus', 'Gagal menghapus cuti'),
+    addLeave: (data) => executeAction(() => api.post('/cuti', data), 'Cuti diajukan', 'Gagal'),
+    updateLeave: (id, data) => executeAction(() => api.patch(`/cuti/${id}`, data), 'Status diperbarui', 'Gagal'),
+    deleteLeave: (id) => executeAction(() => api.delete(`/cuti/${id}`), 'Data dihapus', 'Gagal'),
   };
 
   return <DataContext.Provider value={dataValue}>{children}</DataContext.Provider>;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useData } from '@/context/DataContext';
 import { Plus, Edit, Trash2, MapPin, Phone, Loader2 } from 'lucide-react';
 import { Modal, ConfirmModal, InputGroup, Pagination } from '@/components/UIComponents';
@@ -8,14 +8,15 @@ import { Employee, CreateEmployeeInput } from '@/types';
 import { MainLayout } from '@/components/MainLayout';
 
 export default function EmployeePage() {
-  const { employees, addEmployee, updateEmployee, deleteEmployee, isLoadingData } = useData();
+  const { fetchEmployees, addEmployee, updateEmployee, deleteEmployee } = useData();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
   const [form, setForm] = useState({ 
     nama_depan: '', 
     nama_belakang: '', 
@@ -36,12 +37,22 @@ export default function EmployeePage() {
     open: false, onConfirm: () => {}, title: '', message: '', type: 'primary'
   });
 
-  const totalItems = employees.length;
+  const loadEmployees = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetchEmployees(currentPage, itemsPerPage);
+      setEmployees(response.data);
+      setTotalItems(response.total);
+    } catch (error) {
+      console.error("Failed to load employees", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, fetchEmployees]);
 
-  const paginatedEmployees = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return employees.slice(start, start + itemsPerPage);
-  }, [employees, currentPage]);
+  useEffect(() => {
+    loadEmployees();
+  }, [loadEmployees]);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -98,11 +109,28 @@ export default function EmployeePage() {
             await addEmployee(form as CreateEmployeeInput);
           }
           setIsModalOpen(false);
+          loadEmployees();
         } catch (error) {
         } finally {
           setIsSubmitting(false);
           setConfirmConfig(prev => ({ ...prev, open: false }));
         }
+      }
+    });
+  };
+
+  const handleDelete = (email: string) => {
+    setConfirmConfig({
+      open: true, 
+      title: 'Hapus Pegawai?', 
+      message: `Hapus data ${email}? Tindakan ini tidak dapat dibatalkan.`, 
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteEmployee(email);
+          loadEmployees();
+        } catch (error) {}
+        setConfirmConfig(prev => ({ ...prev, open: false }));
       }
     });
   };
@@ -113,7 +141,7 @@ export default function EmployeePage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-black text-gray-800">Data Pegawai</h2>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Database SDM Internal</p>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Database SDM Internal (Server-Side)</p>
           </div>
           <button 
             onClick={() => handleOpenModal()} 
@@ -135,14 +163,14 @@ export default function EmployeePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {isLoadingData ? (
+                {isLoading ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center">
                       <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" />
-                      <p className="mt-2 text-gray-400 font-medium">Memuat data pegawai...</p>
+                      <p className="mt-2 text-gray-400 font-medium">Memuat data dari server...</p>
                     </td>
                   </tr>
-                ) : paginatedEmployees.map(emp => (
+                ) : employees.map(emp => (
                   <tr key={emp.email} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-bold text-gray-800 text-sm">{emp.nama_depan} {emp.nama_belakang}</div>
@@ -171,13 +199,7 @@ export default function EmployeePage() {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => setConfirmConfig({
-                            open: true, 
-                            title: 'Hapus Pegawai?', 
-                            message: `Hapus data ${emp.email}? Tindakan ini tidak dapat dibatalkan.`, 
-                            type: 'danger',
-                            onConfirm: () => deleteEmployee(emp.email)
-                          })} 
+                          onClick={() => handleDelete(emp.email)} 
                           className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -186,7 +208,7 @@ export default function EmployeePage() {
                     </td>
                   </tr>
                 ))}
-                {!isLoadingData && paginatedEmployees.length === 0 && (
+                {!isLoading && employees.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-gray-400 font-medium italic">
                       Tidak ada data pegawai ditemukan
@@ -196,6 +218,8 @@ export default function EmployeePage() {
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination Component */}
           <Pagination 
             currentPage={currentPage} 
             totalItems={totalItems} 
@@ -204,6 +228,7 @@ export default function EmployeePage() {
           />
         </div>
 
+        {/* Modal Form */}
         <Modal 
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)} 
