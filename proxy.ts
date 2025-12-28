@@ -21,19 +21,8 @@ export function proxy(request: NextRequest) {
   }
 
   if ((accessToken || refreshToken) && isAuthPage) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.next();
   }
 
   return NextResponse.next();
 }
-
-export const config = {
-  matcher: [
-    '/dashboard/:path*',
-    '/admins/:path*',
-    '/employees/:path*',
-    '/leaves/:path*',
-    '/summary/:path*',
-    '/login'
-  ],
-};
